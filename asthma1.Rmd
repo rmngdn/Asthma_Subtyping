@@ -1,0 +1,165 @@
+---
+title: "Asthma data set exploration"
+output: html_notebook
+---
+
+## Discovery of the data
+
+```{r}
+wd <- "/data/Datasets_Local/Asthma"
+```
+I used the shell command: >head --lines 2 mrna.tsv to have a primary view of the data
+
+There is headers and it is tab separated
+
+Let's explore the data:
+
+```{r}
+path1 <-  paste0(wd,"/pagapow-DataExport-119281/subset1_UBIO_ADULT_FINAL/mrna.tsv")
+gene.data1 <- read.delim(file = path1, header = TRUE, sep = "\t")
+```
+
+```{r}
+head(gene.data1)
+```
+
+```{r}
+clinical_data <- read.delim(paste0(wd,"/pagapow-DataExport-119385/subset1_UBIO_ADULT_FINAL/Clinical/clinical_i2b2trans.txt"))
+```
+
+##mRNA-like data
+
+We want to understand how is organised the data. For the moment, it's like the result of a sql joint. We want to have a table for each datatype.
+
+We'll start to work with genomic data (gene.data1) with a reduced set of patient.
+
+```{r}
+permut <- order(as.character(gene.data1$PATIENT.ID))
+sorted.gene.data1 <- gene.data1[permut,]
+#We add a column for the reduction:
+facToNum <- function(f) {
+  return(as.integer(substring(as.character(f), 3, 5))) #A_023 becomes 23
+}
+sorted.gene.data1$int.patientID <- unlist(lapply(sorted.gene.data1$PATIENT.ID, 
+                                      facToNum))
+
+```
+
+```{r}
+selection <- function(sorted.data, patientList) {
+  #numList contains a list of integers 
+  return(sorted.data[sorted.data$int.patientID %in% patientList, ])
+}
+```
+
+```{r}
+onePatient <- selection(sorted.gene.data1, 0)
+dim(onePatient)[1]
+```
+
+Have they all the same number of features ?
+
+```{r}
+patientsNumbers <- unique(sorted.gene.data1$int.patientID) #list of patients id in integer format
+listNumberFeatures <- c()
+for (i in patientsNumbers) {
+  listNumberFeatures <- c(listNumberFeatures, dim(selection(sorted.gene.data1, i))[1]) #number of features
+}
+length(unique(listNumberFeatures))
+```
+
+Let's make a matrix with one patient per row and the features in columns. 
+We want one matrix by datatype. WE'LL CONSIDER THAT THE DATATYPE IS THE TISSUE TYPE HERE.
+So here, it's only one data type.
+
+Let's create a function to split data by a specified row (TISSUE.TYPE if our assumption is good)
+
+
+```{r}
+split_by_type <- function(data,data_column) {
+  listOfType <- unique(data_column)
+  resList <- list()
+  for(type in listOfType) {
+    resList <- append(resList, data[data_column == type,])
+  }
+  return(resList)
+}
+
+matrixMaker <- function(oneDataType) { #the dataframe is supposed to have the added column int.patientID
+  listPatientID <- unique(oneDataType$int.patientID)
+  firstIteration <- TRUE
+  for (i in listPatientID) {
+    #data from patient i in temp
+    temp <- selection(oneDataType, i)
+    one_row <- t(as.matrix(temp$VALUE))
+    
+    #columns named by the GENE.ID
+    cnames <- t(temp$GENE.ID)
+    colnames(one_row) <- cnames
+    
+    #patient identifier in integer form (can be change later if not convenient)
+    rownames(one_row) <- i 
+    
+    if (firstIteration) {
+      print(dim(one_row))
+      resMatrix <- one_row #for the first iteration
+      print(dim(resMatrix))
+      firstIteration <- FALSE
+    } else {
+      resMatrix <- rbind(resMatrix, one_row)  # add the row to the whole matrix
+    }
+  }
+  return(resMatrix)# a matrix with all the values of the data frame for each patient.
+}
+
+
+matrix1 <- matrixMaker(sorted.gene.data1)
+```
+
+```{r}
+mostFeaturedPatient <- function(oneDataType) {
+  patientsNumbers <- unique(oneDataType$int.patientID)
+  numbMax <- 0
+  for (i in patientsNumbers) {
+    current_number <- dim(selection(oneDataType, i))[1] #number of features
+    if (current_number > numbMax) {numbMax <- current_number}
+}
+  return(numbMax)
+}
+```
+
+```{r}
+matrix_creator <- function(oneDataType) {
+  #sort the data by patients and add a column with patient ids as integer:
+  permut <- order(as.character(oneDataType$PATIENT.ID))
+  sorted.data <- oneDataType[permut,]
+  facToNum <- function(f) {
+    return(as.integer(substring(as.character(f), 3, 5))) #A_023 becomes 23
+  }
+  sorted.data$int.patientID <- unlist(lapply(sorted.data$PATIENT.ID, 
+                                        facToNum))
+  
+  #init the matrix with the patient with the more features.
+  most <- mostFeaturedPatient(sorted.data) 
+  temp <- selection(sorted.data, most)
+  col <- temp$VALUE
+  print(dim(col))
+  colnames(col) <- sorted.data$PATIENT.ID[most]
+  rownames(col) <- as.vector(sorted.data$GENE.ID) 
+  resMatrix <- col
+  print(head.matrix(resMatrix))
+}
+matrix_creator(gene.data1)
+```
+
+```{r}
+#create the list of all features (all different GENE.ID)
+patientsNumbers <- unique(sorted.gene.data1$int.patientID) #list of patients id in integer format
+allFeatures <- list()
+for (i in patientsNumbers) {
+  current_list <- selection(sorted.gene.data1, i)
+  
+}
+```
+
+
