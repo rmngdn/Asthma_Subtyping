@@ -1,129 +1,84 @@
 #rawToMatrix.R
 #Romain GUEDON
 
-#----PRESETS----
+#----What is it for ?-----
 
-#The goal here is to create one matrix for each data type. The matrix is a classic one: one row per patient and features as columns
+# The goal here is to create one matrix per data type of the inputed dataset. 
+# the matrix is in the classic format (rows = patients ; cols = features)
 
-#Import the data:
-wd <- "/data/Datasets_Local/Asthma"
-path <-  paste0(wd,"/pagapow-DataExport-119281/subset1_UBIO_ADULT_FINAL/mrna.tsv")
-data <- read.delim(file = path, header = TRUE, sep = "\t")
 
 
 #----SUBFUNCTIONS---- 
 
 
-#Add a column where PATIENT.ID takes an integer form, e.g. A_023 becomes 23
-facToNum <- function(f) {
-  return(as.integer(substring(as.character(f), 3, 5))) 
-}
+#split data by TISSUE.TYPE into a list of data frames:
 
-addColumn <- function(rawData) {
-  rawData$intPID <- unlist(lapply(rawData$PATIENT.ID, facToNum)) 
-}
-
-
-#Now split data by TISSUE.TYPE into a list of data frames:
-
-split_by_type <- function(data, data_column = "TISSUE.TYPE") {
-  ###we let the choice of what column should be used to separate data type, by default, it's TISSUE.TYPE 
-  # To avoid growing object we init the resList and then insert each element in the good place
-  listOfType <- unique(data[,data_column])
-  n <- length(listOfType)
-  resList <- vector('list',n)
-  for(i in 1:n) {
-    temp <- data[data[,data_column] == listOfType[i],]
-    resList[[i]] <- temp
-  }
-  return(resList)
-}
-
-
-split_by_type2 <- function(data,data_column = "TISSUE.TYPE") {
-  ###we let the choice of what column should be used to separate data type, by default: it's TISSUE.TYPE 
-  # We suppose that lapply is faster:
-  listOfType <- unique(data[,data_column])
+split_by_type2 <- function(rawData, data_column = "TISSUE.TYPE") {
+  # we let the choice of what column should be used to separate data type, by default: it's TISSUE.TYPE 
+  listOfType <- unique(rawData[, data_column])
+  namesOfType <- lapply(listOfType, as.character)
   A <- function(type) {
-    return(data[data[,data_column] == type,])
+    return(rawData[rawData[,data_column] == type,])
   }
   resList <- lapply(listOfType, A)
-  return(resList)
+  return(setNames(resList, namesOfType))
 }
 
 
-#typeList <- split_by_type2(data)
+# extract the data from a given patient and transform it into 
+# a named vector
+valuesPatient <- function(patientID, type, feature = "PROBE") {
+  # extract the values of the features for the patient
+  temp <- type[type$PATIENT.ID == patientID, c("VALUE", feature)]
+  value <- t(matrix(temp[, "VALUE"]))
+  rownames(value) <- patientID
+  colnames(value) <- temp[, feature]
+  return(value)
+}
 
-#We extract oneType 
-#oneType <- typeList[[1]]
-
-## The goal here is to create a matrix with named columns containing all the PROBE of the patients
-
-matrixInit <- function(data,feature="PROBE") {
-  ## return an empty (NA values) matrix of adjusted to the "size" of the data, i.e. patients in rows and features in columns
-  listOfFeatures <- unique(data[,feature])
-  listOfPatients <- unique(data[,"PATIENT.ID"])
+# creates a matrix with the good size with NA values. The matrix is ready to receive values from each patient
+matrixInit <- function(type,feature="PROBE") {
+  listOfFeatures <- unique(type[,feature])
+  listOfPatients <- unique(type[,"PATIENT.ID"])
   m <- length(listOfFeatures) 
   n <- length(listOfPatients)
   res <- matrix(NA, n, m)
-  colnames(res) <- as.character(listOfFeatures)
-  rownames(res) <- as.character(listOfPatients)
+  colnames(res) <- lapply(listOfFeatures, as.character)
+  rownames(res) <- lapply(listOfPatients, as.character)
   return(res)
 }
 
-#testInit <- matrixInit(data,data$PROBE)
-#testInit[1:3,1:3]
 
-selectionValues <- function(oneType, onePatientID) {
-  res <- oneType[oneType$PATIENT.ID == onePatientID, "VALUE"]
-}
-  
-  
-oneTypeToMatrix <- function(oneType, feature = "PROBE") {
-  # sub-functions 
-  valuesOnePatient <- function(onePatientID, feature = "PROBE") {
-    #We extract the values of the features for the patient.
-    temp <- oneType[oneType$PATIENT.ID == onePatientID, c("VALUE", feature)]
-    res <- data.frame(temp[, "VALUE"], 
-                      row.names = temp[, feature]) 
-    colnames(res) <- onePatientID
-    return(res)
+typeToMatrix <- function(type, feature = "PROBE") {
+  # extract patient IDs
+  patientIDList <- unique(type$PATIENT.ID)
+  # initiate the matrix
+  resMatrix <- matrixInit(type, feature)
+  # extract data from each patient and insert it at the right place
+  # in the matrix
+  test <- TRUE
+  for (patientID in patientIDList) {
+    row <- valuesPatient(patientID, type, feature)
+    resMatrix[rownames(row),colnames(row)] <- row
   }
-  
-  # function body
-  patientIDList <- unique(oneType$PATIENT.ID)
-  resMatrix <- matrixInit(data, feature)
-  
-  
+  return(resMatrix)
 }       
-oneTypeToMatrix(data)
-
-
-#Let's find the duplicates
-
-onePatient <- data[data$PATIENT.ID == "A_000", ]
-listLength<-unlist(lapply(1:14, function(p) length(unique(onePatient[,p]))))
-setNames(listLength, names(data))
-
-findDuplicates <- function(data) {
-  data2 <- data.frame(data)
-  data2$geneID
-}
-
 
 
 
 #----MAIN FUNCTION----
 
 rawToMatrix <- function(rawData, feature = "PROBE") {
-  # add a column to facilitate the selection of patients
-  addColumn(rawData) #maybe optional
   dataTypes <- split_by_type2(rawData)
-  matrixList <- lapply(dataTypes, function(p) oneTypeToMatrix(p, feature))
+  matrixList <- lapply(dataTypes, function(p) typeToMatrix(p, feature))
   return(matrixList)
   }
 
+#----TESTS---- 
 
-testNames <- c("gene1", "gene2","gene3")
-empty <- matrix(character(), 3, 1)
-testDF <- data.frame(empty)
+#wd <- "/data/Datasets_Local/Asthma"
+#path1 <-  paste0(wd,"/mrna1.tsv")
+#data1 <- read.delim(file = path1, header = TRUE, sep = "\t")
+
+
+
