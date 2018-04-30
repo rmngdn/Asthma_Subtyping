@@ -6,17 +6,23 @@ library("CancerSubtypes")
 library(SNFtool)
 library(impute)
 #Import the data:
+
+##NOTE: CHANGE THIS TO YOUR PERSONNAL PATH ...
+
 wd <- "/data/Datasets_Local/Asthma"
 setwd(wd)
 path <- "./dataFused.tsv"
-#data <- read.delim(file = path, header = TRUE, sep = "\t") #comment after loading
+
+#Take a little while, comment it after loading:
+
+data <- read.delim(file = path, header = TRUE, sep = "\t") 
 
 MansoorAssignment <- read.csv("./mansoor-assign.csv")
 
 #Extract wanted informations:
 
 reducedData <- data[data$PATIENT.ID %in% MansoorAssignment$subject_id,]
-length(unique(reducedData$PATIENT.ID))
+
 
 #Extract the matrix from each datatype:
 
