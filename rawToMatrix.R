@@ -61,9 +61,8 @@ typeToMatrix <- function(type, feature = "PROBE") {
     row <- valuesPatient(patientID, type, feature)
     resMatrix[rownames(row),colnames(row)] <- row
   }
-  return(resMatrix)
+  return(resMatrix[order(rownames(resMatrix)),])#order the patients
 }       
-
 
 
 #----MAIN FUNCTION----
@@ -76,9 +75,10 @@ rawToMatrix <- function(rawData, feature = "PROBE") {
 
 #----TESTS---- 
 
-#wd <- "/data/Datasets_Local/Asthma"
-#path1 <-  paste0(wd,"/mrna1.tsv")
-#data1 <- read.delim(file = path1, header = TRUE, sep = "\t")
-
+# wd <- "/data/Datasets_Local/Asthma"
+# path1 <-  paste0(wd,"/mrna1.tsv")
+# data1 <- read.delim(file = path1, header = TRUE, sep = "\t")
+# 
+# res <- rawToMatrix(data1)
 
 
